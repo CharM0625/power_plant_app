@@ -3,75 +3,85 @@ import pandas as pd
 import numpy as np
 import joblib
 import matplotlib.pyplot as plt
+import seaborn as sns
 
-#Load the model
+# Page layout
+st.set_page_config(
+    page_title="California Power Plant Capacity Prediction",
+    layout="wide"
+)
+
+# Load model
 model = joblib.load("power_plant_model.pkl")
 
-#Load features
+# Load model features
 features = joblib.load("model_features.pkl")
 
-#Create the app name
+# App title
 st.title("California Power Plant Capacity Prediction")
 
-#Explain the app
-st.write("This application predicts power plant generation capacity based on plant characteristics.")
+st.write(
+    "This application predicts power plant generation capacity based on plant characteristics."
+)
 
-#Create input fields
-
+# Layout
 col1, col2 = st.columns(2)
 
+# INPUT PANEL
 with col1:
-    
+
+    st.subheader("Enter Plant Characteristics")
+
     x = st.number_input("Longitude", value=-120.0)
     y = st.number_input("Latitude", value=36.0)
+
+    Plant_Age = st.slider('Plant Age', 0, 100, 0)
     
-    plant_age = st.slider("Plant Age", 0, 100, 10)
+    Start_Year = st.number_input('Start Year', value=2010)
     
-    start_year = st.number_input("Start Year", value=2010)
-    
-    solar = st.selectbox("Solar Plant", [0,1])
-    hydro = st.selectbox("Hydropower Plant", [0,1])
+    PriEnergySource = st.selectbox('Energy Source', ['Nuclear', 'Sun', 'Sub-Bitumous Coal', 'Bitumous', 'Natural Gas', 'Wind', 'Water'])
 
 
+# MAP PANEL
 with col2:
-    
+
     st.subheader("Plant Location")
 
     map_data = pd.DataFrame({
-        "lat":[y],
-        "lon":[x]
+        "lat": [y],
+        "lon": [x]
     })
 
     st.map(map_data)
 
-#Build the input dataframe
+
+# Build input dataframe
 input_dict = {
     "x": x,
     "y": y,
-    "Plant_Age": plant_age,
-    "StartYear": start_year,
-    "PriEnergySource_SUN": solar,
-    "PriEnergySource_WAT": hydro
+    "Plant_Age": Plant_Age,
+    "StartYear": Start_Year,
+    "PriEnergySource": PriEnergySource
 }
 
 input_df = pd.DataFrame([input_dict])
 
-# Match model training features
+# Match training features
 for col in features:
     if col not in input_df:
         input_df[col] = 0
 
 input_df = input_df[features]
 
-#Create the predict button
+# Prediction button
 if st.button("Predict Capacity"):
-    
+
     prediction = model.predict(input_df)[0]
 
-    st.subheader("Predicted Capacity")
+    st.subheader("Prediction Results")
 
-    st.success(f"{prediction:.2f} MW")
-    
+    st.success(f"Predicted Capacity: {prediction:.2f} MW")
+
     if prediction < 50:
         st.warning("Small Power Plant")
 
@@ -81,32 +91,50 @@ if st.button("Predict Capacity"):
     else:
         st.success("Large Utility Scale Power Plant")
 
-#Visualization
-    fig, ax = plt.subplots()
 
-    ax.bar(["Predicted Capacity"], [prediction])
+    # Create side-by-side charts
+    chart1, chart2 = st.columns(2)
 
-    ax.set_ylabel("Megawatts (MW)")
-    ax.set_title("Estimated Power Plant Capacity")
+    # Capacity Chart
+    with chart1:
 
-    st.pyplot(fig)
+        fig, ax = plt.subplots()
 
-    fig, ax = plt.subplots()
+        ax.bar(["Predicted Capacity"], [prediction], color="orange")
 
-    ax.bar(["Predicted Capacity"], [prediction])
+        ax.set_ylabel("Megawatts (MW)")
+        ax.set_title("Estimated Power Plant Capacity")
 
-    ax.set_ylabel("Megawatts (MW)")
-    ax.set_title("Estimated Power Plant Capacity")
+        st.pyplot(fig)
 
-    st.pyplot(fig)
+    # Feature Importance Chart
+    with chart2:
 
-    fig2, ax2 = plt.subplots()
+        if hasattr(model, "feature_importances_"):
 
-    ax2.barh(
-        importance_df["Feature"],
-        importance_df["Importance"]
-    )
+            importance_df = pd.DataFrame({
+                "Feature": features,
+                "Importance": model.feature_importances_
+            })
 
-    ax2.set_title("Top Features Influencing Capacity")
+            importance_df = importance_df.sort_values(
+                by="Importance",
+                ascending=False
+            ).head(10)
 
-    st.pyplot(fig2)
+            fig2, ax2 = plt.subplots()
+
+            colors = plt.cm.viridis(np.linspace(0,1,len(importance_df)))
+
+            ax2.barh(
+                importance_df["Feature"],
+                importance_df["Importance"],
+                color=colors
+            )
+
+            ax2.set_title("Top Features Influencing Capacity")
+
+            st.pyplot(fig2)
+
+        else:
+            st.info("Feature importance not available for this model.")
